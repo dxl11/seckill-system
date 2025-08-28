@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.seckill.system.dao.ProductStockDao">
+    
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.seckill.system.entity.ProductStock">
+        <id column="stock_id" property="stockId" jdbcType="BIGINT"/>
+        <result column="product_id" property="productId" jdbcType="BIGINT"/>
+        <result column="total_stock" property="totalStock" jdbcType="INTEGER"/>
+        <result column="available_stock" property="availableStock" jdbcType="INTEGER"/>
+        <result column="locked_stock" property="lockedStock" jdbcType="INTEGER"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+    
+    <!-- 基础字段 -->
+    <sql id="Base_Column_List">
+        stock_id, product_id, total_stock, available_stock, locked_stock, create_time, update_time
+    </sql>
+    
+    <!-- 根据商品ID查询库存 -->
+    <select id="selectByProductId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product_stock
+        WHERE product_id = #{productId}
+    </select>
+    
+    <!-- 插入库存记录 -->
+    <insert id="insert" parameterType="com.seckill.system.entity.ProductStock" useGeneratedKeys="true" keyProperty="stockId">
+        INSERT INTO product_stock (
+            product_id, total_stock, available_stock, locked_stock, create_time, update_time
+        ) VALUES (
+            #{productId}, #{totalStock}, #{availableStock}, #{lockedStock}, NOW(), NOW()
+        )
+    </insert>
+    
+    <!-- 更新库存 -->
+    <update id="update" parameterType="com.seckill.system.entity.ProductStock">
+        UPDATE product_stock
+        SET total_stock = #{totalStock},
+            available_stock = #{availableStock},
+            locked_stock = #{lockedStock},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+    </update>
+    
+    <!-- 扣减库存 -->
+    <update id="decreaseStock">
+        UPDATE product_stock
+        SET available_stock = available_stock - #{quantity},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+        AND available_stock >= #{quantity}
+    </update>
+    
+    <!-- 增加库存 -->
+    <update id="increaseStock">
+        UPDATE product_stock
+        SET available_stock = available_stock + #{quantity},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+    </update>
+    
+</mapper>

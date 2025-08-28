@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.seckill.system.dao.SeckillOrderDao">
+    
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.seckill.system.entity.SeckillOrder">
+        <id column="order_id" property="orderId" jdbcType="BIGINT"/>
+        <result column="user_id" property="userId" jdbcType="BIGINT"/>
+        <result column="product_id" property="productId" jdbcType="BIGINT"/>
+        <result column="product_name" property="productName" jdbcType="VARCHAR"/>
+        <result column="seckill_price" property="seckillPrice" jdbcType="DECIMAL"/>
+        <result column="quantity" property="quantity" jdbcType="INTEGER"/>
+        <result column="total_amount" property="totalAmount" jdbcType="DECIMAL"/>
+        <result column="status" property="status" jdbcType="INTEGER"/>
+        <result column="pay_time" property="payTime" jdbcType="TIMESTAMP"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+    
+    <!-- 基础字段 -->
+    <sql id="Base_Column_List">
+        order_id, user_id, product_id, product_name, seckill_price, quantity,
+        total_amount, status, pay_time, create_time, update_time
+    </sql>
+    
+    <!-- 根据订单ID查询订单 -->
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM seckill_order
+        WHERE order_id = #{orderId}
+    </select>
+    
+    <!-- 根据用户ID和商品ID查询订单 -->
+    <select id="selectByUserIdAndProductId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM seckill_order
+        WHERE user_id = #{userId}
+        AND product_id = #{productId}
+    </select>
+    
+    <!-- 查询用户的所有订单 -->
+    <select id="selectByUserId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM seckill_order
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+    </select>
+    
+    <!-- 插入订单 -->
+    <insert id="insert" parameterType="com.seckill.system.entity.SeckillOrder" useGeneratedKeys="true" keyProperty="orderId">
+        INSERT INTO seckill_order (
+            user_id, product_id, product_name, seckill_price, quantity,
+            total_amount, status, create_time, update_time
+        ) VALUES (
+            #{userId}, #{productId}, #{productName}, #{seckillPrice}, #{quantity},
+            #{totalAmount}, #{status}, NOW(), NOW()
+        )
+    </insert>
+    
+    <!-- 更新订单 -->
+    <update id="update" parameterType="com.seckill.system.entity.SeckillOrder">
+        UPDATE seckill_order
+        SET product_name = #{productName},
+            seckill_price = #{seckillPrice},
+            quantity = #{quantity},
+            total_amount = #{totalAmount},
+            status = #{status},
+            pay_time = #{payTime},
+            update_time = NOW()
+        WHERE order_id = #{orderId}
+    </update>
+    
+    <!-- 更新订单状态 -->
+    <update id="updateStatus">
+        UPDATE seckill_order
+        SET status = #{status},
+            update_time = NOW()
+        WHERE order_id = #{orderId}
+    </update>
+    
+</mapper>

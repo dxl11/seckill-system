@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.seckill.system.dao.ProductDao">
+    
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.seckill.system.entity.Product">
+        <id column="product_id" property="productId" jdbcType="BIGINT"/>
+        <result column="product_name" property="productName" jdbcType="VARCHAR"/>
+        <result column="description" property="description" jdbcType="VARCHAR"/>
+        <result column="price" property="price" jdbcType="DECIMAL"/>
+        <result column="seckill_price" property="seckillPrice" jdbcType="DECIMAL"/>
+        <result column="image_url" property="imageUrl" jdbcType="VARCHAR"/>
+        <result column="status" property="status" jdbcType="INTEGER"/>
+        <result column="seckill_start_time" property="seckillStartTime" jdbcType="TIMESTAMP"/>
+        <result column="seckill_end_time" property="seckillEndTime" jdbcType="TIMESTAMP"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+    
+    <!-- 基础字段 -->
+    <sql id="Base_Column_List">
+        product_id, product_name, description, price, seckill_price, image_url, 
+        status, seckill_start_time, seckill_end_time, create_time, update_time
+    </sql>
+    
+    <!-- 根据ID查询商品 -->
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product
+        WHERE product_id = #{productId}
+    </select>
+    
+    <!-- 查询所有商品 -->
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product
+        ORDER BY create_time DESC
+    </select>
+    
+    <!-- 查询秒杀中的商品 -->
+    <select id="selectSeckillProducts" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product
+        WHERE status = 2
+        AND seckill_start_time &lt;= NOW()
+        AND seckill_end_time &gt;= NOW()
+        ORDER BY create_time DESC
+    </select>
+    
+    <!-- 插入商品 -->
+    <insert id="insert" parameterType="com.seckill.system.entity.Product" useGeneratedKeys="true" keyProperty="productId">
+        INSERT INTO product (
+            product_name, description, price, seckill_price, image_url,
+            status, seckill_start_time, seckill_end_time, create_time, update_time
+        ) VALUES (
+            #{productName}, #{description}, #{price}, #{seckillPrice}, #{imageUrl},
+            #{status}, #{seckillStartTime}, #{seckillEndTime}, NOW(), NOW()
+        )
+    </insert>
+    
+    <!-- 更新商品 -->
+    <update id="update" parameterType="com.seckill.system.entity.Product">
+        UPDATE product
+        SET product_name = #{productName},
+            description = #{description},
+            price = #{price},
+            seckill_price = #{seckillPrice},
+            image_url = #{imageUrl},
+            status = #{status},
+            seckill_start_time = #{seckillStartTime},
+            seckill_end_time = #{seckillEndTime},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+    </update>
+    
+    <!-- 删除商品 -->
+    <delete id="deleteById" parameterType="java.lang.Long">
+        DELETE FROM product WHERE product_id = #{productId}
+    </delete>
+    
+    <!-- 更新商品状态 -->
+    <update id="updateStatus">
+        UPDATE product
+        SET status = #{status},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+    </update>
+    
+</mapper>
