@@ -10,7 +10,7 @@ import com.seckill.system.entity.Result;
 import com.seckill.system.entity.SeckillOrder;
 import com.seckill.system.exception.BusinessException;
 import com.seckill.system.service.SeckillService;
-import com.seckill.system.util.DistributedLockUtil;
+import com.seckill.system.util.RedisDistributedLockUtil;
 import com.seckill.system.util.RedisLuaUtil;
 import com.seckill.system.util.RedisUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +46,7 @@ public class SeckillServiceImpl implements SeckillService {
     private SeckillOrderDao seckillOrderDao;
 
     @Autowired
-    private DistributedLockUtil distributedLockUtil;
+    private RedisDistributedLockUtil distributedLockUtil;
 
     @Autowired
     private RedisLuaUtil redisLuaUtil;
@@ -88,7 +88,7 @@ public class SeckillServiceImpl implements SeckillService {
 
             // 3. 使用分布式锁保护秒杀过程
             String lockKey = STOCK_LOCK_PREFIX + productId;
-            return distributedLockUtil.executeWithLock(lockKey, 5, 10, TimeUnit.SECONDS, () -> {
+            return distributedLockUtil.executeWithLock(lockKey, 5, 10, () -> {
                 return executeSeckillLogic(userId, productId, quantity);
             });
 
