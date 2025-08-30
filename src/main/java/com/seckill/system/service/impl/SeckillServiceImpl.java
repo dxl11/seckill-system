@@ -10,7 +10,7 @@ import com.seckill.system.entity.Result;
 import com.seckill.system.entity.SeckillOrder;
 import com.seckill.system.exception.BusinessException;
 import com.seckill.system.service.SeckillService;
-import com.seckill.system.util.RedisDistributedLockUtil;
+import com.seckill.system.util.DistributedLockUtil;
 import com.seckill.system.util.RedisLuaUtil;
 import com.seckill.system.util.RedisUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +46,7 @@ public class SeckillServiceImpl implements SeckillService {
     private SeckillOrderDao seckillOrderDao;
 
     @Autowired
-    private RedisDistributedLockUtil distributedLockUtil;
+    private DistributedLockUtil distributedLockUtil;
 
     @Autowired
     private RedisLuaUtil redisLuaUtil;
@@ -72,7 +72,18 @@ public class SeckillServiceImpl implements SeckillService {
     private static final String STOCK_LOCK_PREFIX = "seckill:lock:";
 
     @Override
-    @DistributedRateLimit(key = "'seckill:product:' + #productId", limit = 100, window = 60, block = false)
+    @AdvancedRateLimit(
+        key = "'seckill:product:' + #productId",
+        algorithm = AdvancedRateLimit.Algorithm.SLIDING_WINDOW,
+        windowSize = 30,
+        limit = 200,
+        enableUserLimit = true,
+        userLimitMultiplier = 0.1,
+        enableIpLimit = true,
+        ipLimitMultiplier = 0.2,
+        blockStrategy = AdvancedRateLimit.BlockStrategy.THROW_EXCEPTION,
+        errorMessage = "秒杀请求过于频繁，请稍后重试"
+    )
     @Transactional(rollbackFor = Exception.class)
     public Result<String> doSeckill(Long userId, Long productId, Integer quantity) {
         try {
@@ -86,9 +97,10 @@ public class SeckillServiceImpl implements SeckillService {
                 return Result.error("您已经参与过该商品的秒杀");
             }
 
-            // 3. 使用分布式锁保护秒杀过程
-            String lockKey = STOCK_LOCK_PREFIX + productId;
-            return distributedLockUtil.executeWithLock(lockKey, 5, 10, () -> {
+            // 3. 使用分布式锁保护秒杀过程（细化锁粒度：商品 + 分片）
+            int shard = (int) (userId % 16);
+            String lockKey = STOCK_LOCK_PREFIX + productId + ":" + shard;
+            return distributedLockUtil.executeWithLock(lockKey, 5, 10, java.util.concurrent.TimeUnit.SECONDS, () -> {
                 return executeSeckillLogic(userId, productId, quantity);
             });
 

@@ -6,6 +6,17 @@ server:
 spring:
   application:
     name: seckill-system
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: manual
+        concurrency: 4
+        max-concurrency: 16
   
   # 数据源配置
   datasource:
@@ -68,6 +79,65 @@ spring:
     url: jdbc:mysql://localhost:3306/seckill?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
     username: root
     password: root
+
+# 限流配置
+seckill:
+  rate-limit:
+    default-strategy:
+      algorithm: sliding-window
+      window-size: 60
+      limit: 100
+      capacity: 100
+      rate: 10.0
+      tokens: 1
+      enable-user-limit: true
+      user-limit-multiplier: 0.1
+      enable-ip-limit: true
+      ip-limit-multiplier: 0.2
+    products:
+      "1":  # 商品ID为1的限流策略
+        algorithm: sliding-window
+        window-size: 30
+        limit: 50
+        enable-user-limit: true
+        user-limit-multiplier: 0.05
+      "2":  # 商品ID为2的限流策略
+        algorithm: token-bucket
+        capacity: 30
+        rate: 3.0
+        tokens: 1
+    users:
+      "1001":  # 用户ID为1001的限流策略
+        algorithm: sliding-window
+        window-size: 60
+        limit: 5
+      "1002":  # 用户ID为1002的限流策略
+        algorithm: token-bucket
+        capacity: 10
+        rate: 1.0
+        tokens: 1
+    ips:
+      "192.168.1.100":  # IP为192.168.1.100的限流策略
+        algorithm: sliding-window
+        window-size: 60
+        limit: 20
+      "10.0.0.1":  # IP为10.0.0.1的限流策略
+        algorithm: token-bucket
+        capacity: 15
+        rate: 2.0
+        tokens: 1
+    apis:
+      "/seckill/do":  # 秒杀接口的限流策略
+        algorithm: sliding-window
+        window-size: 30
+        limit: 200
+        enable-user-limit: true
+        user-limit-multiplier: 0.1
+      "/async-seckill/submit":  # 异步秒杀接口的限流策略
+        algorithm: token-bucket
+        capacity: 100
+        rate: 20.0
+        tokens: 1
 
 # 日志配置
 logging:

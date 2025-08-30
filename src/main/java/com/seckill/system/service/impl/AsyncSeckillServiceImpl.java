@@ -1,6 +1,9 @@
 package com.seckill.system.service.impl;
 
+import com.seckill.system.annotation.AdvancedRateLimit;
 import com.seckill.system.entity.Result;
+import com.seckill.system.mq.SeckillMessageProducer;
+import com.seckill.system.mq.SeckillRequestMessage;
 import com.seckill.system.service.AsyncSeckillService;
 import com.seckill.system.service.SeckillService;
 import com.seckill.system.util.RedisUtil;
@@ -30,6 +33,9 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
     @Autowired
     private RedisUtil redisUtil;
 
+    @Autowired
+    private SeckillMessageProducer messageProducer;
+
     /**
      * 请求ID生成器
      */
@@ -50,11 +56,6 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
     private static final String REQUEST_STATUS_PREFIX = "seckill:request:status:";
 
     /**
-     * 请求队列前缀
-     */
-    private static final String REQUEST_QUEUE_PREFIX = "seckill:request:queue:";
-
-    /**
      * 用户请求历史前缀
      */
     private static final String USER_REQUEST_HISTORY_PREFIX = "seckill:user:history:";
@@ -64,6 +65,7 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
      */
     public enum RequestStatus {
         PENDING("待处理"),
+        ENQUEUED("已入队"),
         PROCESSING("处理中"),
         SUCCESS("成功"),
         FAILED("失败"),
@@ -81,6 +83,19 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
     }
 
     @Override
+    @AdvancedRateLimit(
+        key = "'async-seckill:submit'",
+        algorithm = AdvancedRateLimit.Algorithm.TOKEN_BUCKET,
+        capacity = 100,
+        rate = 20.0,
+        tokens = 1,
+        enableUserLimit = true,
+        userLimitMultiplier = 0.1,
+        enableIpLimit = true,
+        ipLimitMultiplier = 0.2,
+        blockStrategy = AdvancedRateLimit.BlockStrategy.THROW_EXCEPTION,
+        errorMessage = "异步秒杀请求过于频繁，请稍后重试"
+    )
     public Result<String> submitSeckillRequest(Long userId, Long productId, Integer quantity) {
         try {
             // 1. 生成请求ID
@@ -95,11 +110,17 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
             
             // 4. 添加到用户历史
             addToUserHistory(userId, request);
+
+            // 5. 发送到MQ
+            SeckillRequestMessage msg = new SeckillRequestMessage(userId, productId, quantity, requestId);
+            boolean sent = messageProducer.send(msg);
+            if (!sent) {
+                updateRequestStatus(requestId, RequestStatus.FAILED);
+                return Result.error("请求入队失败");
+            }
+            updateRequestStatus(requestId, RequestStatus.ENQUEUED);
             
-            // 5. 异步处理秒杀请求
-            processSeckillRequestAsync(request);
-            
-            log.info("秒杀请求提交成功，requestId: {}, userId: {}, productId: {}", requestId, userId, productId);
+            log.info("秒杀请求已入队，requestId: {}, userId: {}, productId: {}", requestId, userId, productId);
             return Result.success(requestId);
             
         } catch (Exception e) {
@@ -126,17 +147,19 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
     @Override
     public Result<String> batchSubmitSeckillRequest(List<SeckillRequest> requests) {
         try {
+            int success = 0;
             List<String> requestIds = new ArrayList<>();
             
             for (SeckillRequest request : requests) {
                 Result<String> result = submitSeckillRequest(request.getUserId(), request.getProductId(), request.getQuantity());
                 if (result.getCode() == 200) {
+                    success++;
                     requestIds.add(result.getData());
                 }
             }
             
-            log.info("批量提交秒杀请求完成，总数: {}, 成功: {}", requests.size(), requestIds.size());
-            return Result.success("批量提交完成，成功" + requestIds.size() + "个");
+            log.info("批量提交秒杀请求完成，总数: {}, 成功: {}", requests.size(), success);
+            return Result.success("批量提交完成，成功" + success + "个");
             
         } catch (Exception e) {
             log.error("批量提交秒杀请求异常", e);
@@ -160,42 +183,8 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
      */
     @Async
     public void processSeckillRequestAsync(SeckillRequest request) {
-        String requestId = request.getRequestId();
-        
-        try {
-            // 1. 更新状态为处理中
-            updateRequestStatus(requestId, RequestStatus.PROCESSING);
-            
-            // 2. 提交到线程池执行
-            Future<Result<String>> future = seckillExecutor.submit(() -> 
-                seckillService.doSeckill(request.getUserId(), request.getProductId(), request.getQuantity())
-            );
-            
-            // 3. 等待执行结果（设置超时时间）
-            try {
-                Result<String> result = future.get(30, TimeUnit.SECONDS);
-                
-                if (result.getCode() == 200) {
-                    updateRequestStatus(requestId, RequestStatus.SUCCESS);
-                    log.info("秒杀请求处理成功，requestId: {}", requestId);
-                } else {
-                    updateRequestStatus(requestId, RequestStatus.FAILED);
-                    log.warn("秒杀请求处理失败，requestId: {}, error: {}", requestId, result.getMessage());
-                }
-                
-            } catch (TimeoutException e) {
-                future.cancel(true);
-                updateRequestStatus(requestId, RequestStatus.TIMEOUT);
-                log.warn("秒杀请求处理超时，requestId: {}", requestId);
-            } catch (Exception e) {
-                updateRequestStatus(requestId, RequestStatus.FAILED);
-                log.error("秒杀请求处理异常，requestId: {}", requestId, e);
-            }
-            
-        } catch (Exception e) {
-            updateRequestStatus(requestId, RequestStatus.FAILED);
-            log.error("异步处理秒杀请求异常，requestId: {}", requestId, e);
-        }
+        // 保留但不再直接使用（兼容旧调用）
+        log.info("Deprecated async path called, requestId={}", request.getRequestId());
     }
 
     /**
@@ -216,7 +205,7 @@ public class AsyncSeckillServiceImpl implements AsyncSeckillService {
     /**
      * 更新请求状态
      */
-    private void updateRequestStatus(String requestId, RequestStatus status) {
+    public void updateRequestStatus(String requestId, RequestStatus status) {
         String key = REQUEST_STATUS_PREFIX + requestId;
         redisUtil.set(key, status.name(), 24, TimeUnit.HOURS);
     }

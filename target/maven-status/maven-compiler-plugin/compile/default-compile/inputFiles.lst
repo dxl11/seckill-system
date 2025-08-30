@@ -1,12 +1,17 @@
+D:\seckill-system\src\main\java\com\seckill\system\annotation\AdvancedRateLimit.java
+D:\seckill-system\src\main\java\com\seckill\system\aspect\AdvancedRateLimitAspect.java
 D:\seckill-system\src\main\java\com\seckill\system\aspect\DistributedRateLimit.java
 D:\seckill-system\src\main\java\com\seckill\system\aspect\DistributedRateLimitAspect.java
 D:\seckill-system\src\main\java\com\seckill\system\aspect\RateLimit.java
 D:\seckill-system\src\main\java\com\seckill\system\aspect\RateLimitAspect.java
 D:\seckill-system\src\main\java\com\seckill\system\config\MyBatisConfig.java
+D:\seckill-system\src\main\java\com\seckill\system\config\RabbitMQConfig.java
+D:\seckill-system\src\main\java\com\seckill\system\config\RateLimitConfig.java
 D:\seckill-system\src\main\java\com\seckill\system\config\RedisConfig.java
 D:\seckill-system\src\main\java\com\seckill\system\controller\AsyncSeckillController.java
 D:\seckill-system\src\main\java\com\seckill\system\controller\MonitorController.java
 D:\seckill-system\src\main\java\com\seckill\system\controller\ProductController.java
+D:\seckill-system\src\main\java\com\seckill\system\controller\RateLimitController.java
 D:\seckill-system\src\main\java\com\seckill\system\controller\SeckillController.java
 D:\seckill-system\src\main\java\com\seckill\system\dao\ProductDao.java
 D:\seckill-system\src\main\java\com\seckill\system\dao\ProductStockDao.java
@@ -17,6 +22,9 @@ D:\seckill-system\src\main\java\com\seckill\system\entity\Result.java
 D:\seckill-system\src\main\java\com\seckill\system\entity\SeckillOrder.java
 D:\seckill-system\src\main\java\com\seckill\system\exception\BusinessException.java
 D:\seckill-system\src\main\java\com\seckill\system\exception\GlobalExceptionHandler.java
+D:\seckill-system\src\main\java\com\seckill\system\mq\SeckillMessageListener.java
+D:\seckill-system\src\main\java\com\seckill\system\mq\SeckillMessageProducer.java
+D:\seckill-system\src\main\java\com\seckill\system\mq\SeckillRequestMessage.java
 D:\seckill-system\src\main\java\com\seckill\system\SeckillApplication.java
 D:\seckill-system\src\main\java\com\seckill\system\service\AsyncSeckillService.java
 D:\seckill-system\src\main\java\com\seckill\system\service\impl\AsyncSeckillServiceImpl.java
@@ -32,3 +40,5 @@ D:\seckill-system\src\main\java\com\seckill\system\util\RateLimiterUtil.java
 D:\seckill-system\src\main\java\com\seckill\system\util\RedisDistributedLockUtil.java
 D:\seckill-system\src\main\java\com\seckill\system\util\RedisLuaUtil.java
 D:\seckill-system\src\main\java\com\seckill\system\util\RedisUtil.java
+D:\seckill-system\src\main\java\com\seckill\system\util\SlidingWindowRateLimiter.java
+D:\seckill-system\src\main\java\com\seckill\system\util\TokenBucketRateLimiter.java
