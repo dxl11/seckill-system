@@ -1,5 +1,6 @@
 package com.seckill.system.service.impl;
 
+import com.seckill.system.annotation.AdvancedRateLimit;
 import com.seckill.system.aspect.DistributedRateLimit;
 import com.seckill.system.dao.ProductDao;
 import com.seckill.system.dao.ProductStockDao;
@@ -10,9 +11,11 @@ import com.seckill.system.entity.Result;
 import com.seckill.system.entity.SeckillOrder;
 import com.seckill.system.exception.BusinessException;
 import com.seckill.system.service.SeckillService;
-import com.seckill.system.util.DistributedLockUtil;
+import com.seckill.system.util.RedissonDistributedLockUtil;
 import com.seckill.system.util.RedisLuaUtil;
 import com.seckill.system.util.RedisUtil;
+import com.seckill.system.util.StockConsistencyUtil;
+import com.seckill.system.util.IdempotencyUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -46,7 +49,13 @@ public class SeckillServiceImpl implements SeckillService {
     private SeckillOrderDao seckillOrderDao;
 
     @Autowired
-    private DistributedLockUtil distributedLockUtil;
+    private RedissonDistributedLockUtil distributedLockUtil;
+
+    @Autowired
+    private StockConsistencyUtil stockConsistencyUtil;
+
+    @Autowired
+    private IdempotencyUtil idempotencyUtil;
 
     @Autowired
     private RedisLuaUtil redisLuaUtil;
@@ -97,10 +106,10 @@ public class SeckillServiceImpl implements SeckillService {
                 return Result.error("您已经参与过该商品的秒杀");
             }
 
-            // 3. 使用分布式锁保护秒杀过程（细化锁粒度：商品 + 分片）
+            // 3. 使用分布式锁保护秒杀过程（细化锁粒度：商品 + 分片，带看门狗自动续期）
             int shard = (int) (userId % 16);
             String lockKey = STOCK_LOCK_PREFIX + productId + ":" + shard;
-            return distributedLockUtil.executeWithLock(lockKey, 5, 10, java.util.concurrent.TimeUnit.SECONDS, () -> {
+            return distributedLockUtil.executeWithLock(lockKey, 5, () -> {
                 return executeSeckillLogic(userId, productId, quantity);
             });
 
@@ -131,27 +140,33 @@ public class SeckillServiceImpl implements SeckillService {
             return Result.error("不在秒杀时间范围内");
         }
 
-        // 2. 使用Lua脚本原子性扣减Redis库存
-        String stockKey = STOCK_CACHE_PREFIX + productId;
-        Long newStock = redisLuaUtil.decreaseStock(stockKey, quantity);
+        // 2. 使用库存一致性工具预扣减Redis库存
+        Long newStock = stockConsistencyUtil.preDeductStock(productId, quantity);
         if (newStock < 0) {
             return Result.error("库存不足");
         }
 
-        // 3. 扣减数据库库存
-        int updateResult = productStockDao.decreaseStock(productId, quantity);
+        // 3. 扣减数据库库存（使用乐观锁）
+        int updateResult = productStockDao.decreaseStockWithVersionAuto(productId, quantity);
         if (updateResult <= 0) {
-            // 数据库库存不足，回滚Redis
-            redisLuaUtil.increaseStock(stockKey, quantity);
-            return Result.error("库存不足");
+            // 数据库库存不足或版本冲突，回滚Redis
+            stockConsistencyUtil.rollbackStock(productId, quantity);
+            return Result.error("库存不足或版本冲突");
         }
 
-        // 4. 创建订单
+        // 4. 确认Redis库存扣减
+        if (!stockConsistencyUtil.confirmDeductStock(productId, quantity, newStock)) {
+            // 库存状态不一致，回滚数据库
+            productStockDao.increaseStock(productId, quantity);
+            return Result.error("库存状态不一致");
+        }
+
+        // 5. 创建订单
         SeckillOrder order = createSeckillOrder(userId, product, quantity);
         int insertResult = seckillOrderDao.insert(order);
         if (insertResult <= 0) {
             // 创建订单失败，回滚库存
-            redisLuaUtil.increaseStock(stockKey, quantity);
+            stockConsistencyUtil.rollbackStock(productId, quantity);
             productStockDao.increaseStock(productId, quantity);
             return Result.error("创建订单失败");
         }

@@ -15,28 +15,12 @@ import org.apache.ibatis.annotations.Param;
 public interface ProductStockDao {
 
     /**
-     * 根据商品ID查询库存
+     * 根据商品ID查询库存信息
      *
      * @param productId 商品ID
      * @return 库存信息
      */
-    ProductStock selectByProductId(@Param("productId") Long productId);
-
-    /**
-     * 插入库存记录
-     *
-     * @param stock 库存信息
-     * @return 影响行数
-     */
-    int insert(ProductStock stock);
-
-    /**
-     * 更新库存
-     *
-     * @param stock 库存信息
-     * @return 影响行数
-     */
-    int update(ProductStock stock);
+    ProductStock selectByProductId(Long productId);
 
     /**
      * 扣减库存
@@ -55,4 +39,54 @@ public interface ProductStockDao {
      * @return 影响行数
      */
     int increaseStock(@Param("productId") Long productId, @Param("quantity") Integer quantity);
+
+    /**
+     * 带乐观锁的库存扣减
+     *
+     * @param productId 商品ID
+     * @param quantity 扣减数量
+     * @param version 版本号
+     * @return 影响行数
+     */
+    int decreaseStockWithVersion(@Param("productId") Long productId, 
+                                @Param("quantity") Integer quantity, 
+                                @Param("version") Integer version);
+
+    /**
+     * 带乐观锁的库存扣减（自动获取版本号）
+     *
+     * @param productId 商品ID
+     * @param quantity 扣减数量
+     * @return 影响行数
+     */
+    int decreaseStockWithVersionAuto(@Param("productId") Long productId, 
+                                    @Param("quantity") Integer quantity);
+
+    /**
+     * 带乐观锁的库存增加
+     *
+     * @param productId 商品ID
+     * @param quantity 增加数量
+     * @param version 版本号
+     * @return 影响行数
+     */
+    int increaseStockWithVersion(@Param("productId") Long productId, 
+                                @Param("quantity") Integer quantity, 
+                                @Param("version") Integer version);
+
+    /**
+     * 获取商品库存版本号
+     *
+     * @param productId 商品ID
+     * @return 版本号
+     */
+    Integer getVersion(@Param("productId") Long productId);
+
+    /**
+     * 锁定库存行（悲观锁）
+     *
+     * @param productId 商品ID
+     * @return 库存信息
+     */
+    ProductStock selectForUpdate(@Param("productId") Long productId);
 }
